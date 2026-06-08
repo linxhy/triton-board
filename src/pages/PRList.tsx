@@ -11,7 +11,7 @@ export default function PRList() {
 
   useEffect(() => {
     if (prs.length === 0) {
-      fetchPRData(30);
+      fetchPRData();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

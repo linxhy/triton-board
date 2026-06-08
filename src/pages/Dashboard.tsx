@@ -1,20 +1,20 @@
 import { useEffect, useMemo } from "react";
 import { Clock, Timer, GitPullRequest, CheckCircle2 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useAppStore, TIME_RANGE_CONFIG } from "@/store/useAppStore";
 import KPICard from "@/components/KPICard";
-import E2ETrendChart from "@/components/E2ETrendChart";
-import QueueTrendChart from "@/components/QueueTrendChart";
-import ChecksDistributionChart from "@/components/ChecksDistributionChart";
+import DurationTrendChart from "@/components/DurationTrendChart";
+import ChecksDetailChart from "@/components/ChecksDetailChart";
 import ChecksRankingChart from "@/components/ChecksRankingChart";
 import TokenConfig from "@/components/TokenConfig";
 import { formatDuration, formatPercent } from "@/utils/format";
 
 export default function Dashboard() {
-  const { prs, loading, error, fetchPRData } = useAppStore();
+  const { prs, loading, error, fetchPRData, timeRange } = useAppStore();
+  const rangeLabel = TIME_RANGE_CONFIG[timeRange].label;
 
   useEffect(() => {
     if (prs.length === 0) {
-      fetchPRData(30);
+      fetchPRData();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -70,7 +70,7 @@ export default function Dashboard() {
         <KPICard
           title="平均 E2E 时长"
           value={formatDuration(kpis.avgE2E)}
-          subtitle={`${kpis.totalPRs} 个 PR 的平均值`}
+          subtitle={`${kpis.totalPRs} 个 PR（${rangeLabel}）`}
           icon={<Clock className="w-4 h-4" />}
           accentColor="#38bdf8"
         />
@@ -84,7 +84,7 @@ export default function Dashboard() {
         <KPICard
           title="PR 总数"
           value={String(kpis.totalPRs)}
-          subtitle="最近已合并的 PR"
+          subtitle={`${rangeLabel}已合并的 PR`}
           icon={<GitPullRequest className="w-4 h-4" />}
           accentColor="#8b5cf6"
         />
@@ -97,15 +97,11 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <E2ETrendChart prs={prs} />
-        <QueueTrendChart prs={prs} />
-      </div>
+      <DurationTrendChart prs={prs} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChecksDistributionChart prs={prs} />
-        <ChecksRankingChart prs={prs} />
-      </div>
+      <ChecksDetailChart prs={prs} />
+
+      <ChecksRankingChart prs={prs} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, List, RefreshCw, Github } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import TimeRangeSelector from "@/components/TimeRangeSelector";
 import { cn } from "@/lib/utils";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -51,19 +52,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               })}
             </nav>
           </div>
-          <button
-            onClick={() => fetchPRData(30)}
-            disabled={loading}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
-              loading
-                ? "bg-white/[0.02] text-slate-600 border-white/[0.04] cursor-not-allowed"
-                : "bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"
-            )}
-          >
-            <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
-            {loading ? "加载中..." : "刷新数据"}
-          </button>
+          <div className="flex items-center gap-3">
+            <TimeRangeSelector />
+            <button
+              onClick={() => fetchPRData()}
+              disabled={loading}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                loading
+                  ? "bg-white/[0.02] text-slate-600 border-white/[0.04] cursor-not-allowed"
+                  : "bg-sky-500/10 text-sky-300 border-sky-500/20 hover:bg-sky-500/20"
+              )}
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+              {loading ? "加载中..." : "刷新数据"}
+            </button>
+          </div>
         </div>
       </header>
 
