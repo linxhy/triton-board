@@ -30,6 +30,18 @@ export interface GitHubWorkflowRun {
   updated_at: string;
   head_sha: string;
   event: string;
+  run_attempt: number;
+}
+
+export interface GitHubWorkflowJob {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  run_id: number;
+  workflow_name: string;
 }
 
 export interface PRMetrics {
@@ -66,6 +78,7 @@ export interface WorkflowMetrics {
   conclusion: string | null;
   duration: number | null;
   queueDuration: number | null;
+  jobQueueDuration: number | null;
   startedAt: Date | null;
   completedAt: Date | null;
 }

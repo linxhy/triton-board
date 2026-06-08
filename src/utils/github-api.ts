@@ -1,8 +1,10 @@
-import type { GitHubPR, GitHubCheckRun, GitHubWorkflowRun, PRMetrics, CheckMetrics, WorkflowMetrics } from "@/types";
+import type { GitHubPR, GitHubCheckRun, GitHubWorkflowRun, GitHubWorkflowJob, PRMetrics, CheckMetrics, WorkflowMetrics } from "@/types";
 
 const REPO_OWNER = "triton-lang";
 const REPO_NAME = "triton-ascend";
 const BASE_URL = "https://api.github.com";
+
+const MAX_QUEUE_TIME_MS = 30 * 60 * 1000;
 
 function getHeaders(token?: string): HeadersInit {
   const headers: HeadersInit = {
@@ -66,7 +68,24 @@ export async function fetchWorkflowRuns(
     hasMore = data.workflow_runs.length === 100;
     page++;
   }
-  return allRuns;
+  return allRuns.filter((wr) => wr.run_attempt === 1);
+}
+
+export async function fetchWorkflowJobs(
+  runId: number,
+  token?: string
+): Promise<GitHubWorkflowJob[]> {
+  const allJobs: GitHubWorkflowJob[] = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs/${runId}/jobs?per_page=100&page=${page}`;
+    const data = await fetchJSON<{ jobs: GitHubWorkflowJob[] }>(url, token);
+    allJobs.push(...data.jobs);
+    hasMore = data.jobs.length === 100;
+    page++;
+  }
+  return allJobs;
 }
 
 function parseDuration(start: string | null, end: string | null): number | null {
@@ -75,10 +94,26 @@ function parseDuration(start: string | null, end: string | null): number | null 
   return duration > 0 ? duration : null;
 }
 
+function computeQueueTime(startedAt: string | null, createdAt: string | null): number | null {
+  if (!startedAt || !createdAt) return null;
+  const qt = new Date(startedAt).getTime() - new Date(createdAt).getTime();
+  if (qt <= 0) return null;
+  if (qt > MAX_QUEUE_TIME_MS) return null;
+  return qt;
+}
+
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 export function computePRMetrics(
   pr: GitHubPR,
   checkRuns: GitHubCheckRun[],
-  workflowRuns: GitHubWorkflowRun[]
+  workflowRuns: GitHubWorkflowRun[],
+  workflowJobsMap: Map<number, GitHubWorkflowJob[]> = new Map()
 ): PRMetrics {
   const createdAt = new Date(pr.created_at);
   const mergedAt = pr.merged_at ? new Date(pr.merged_at) : null;
@@ -90,26 +125,41 @@ export function computePRMetrics(
     ? closedAt.getTime() - createdAt.getTime()
     : null;
 
+  const completedWorkflows = workflowRuns.filter(
+    (wr) => wr.status === "completed" && wr.run_started_at
+  );
+
   const workflowQueueTimes: number[] = [];
-  workflowRuns.forEach((wr) => {
-    if (wr.run_started_at && wr.created_at) {
-      const queueTime = new Date(wr.run_started_at).getTime() - new Date(wr.created_at).getTime();
-      if (queueTime > 0) {
-        workflowQueueTimes.push(queueTime);
-      }
+  completedWorkflows.forEach((wr) => {
+    const qt = computeQueueTime(wr.run_started_at, wr.created_at);
+    if (qt !== null) {
+      workflowQueueTimes.push(qt);
     }
   });
 
   const prQueueDuration = workflowQueueTimes.length > 0
-    ? workflowQueueTimes.reduce((a, b) => a + b, 0) / workflowQueueTimes.length
+    ? median(workflowQueueTimes)
     : null;
 
   const checks: CheckMetrics[] = checkRuns.map((cr) => {
-    const matchingWr = workflowRuns.find((wr) => wr.name === cr.name);
     let checkQueueDuration: number | null = null;
-    if (matchingWr?.run_started_at && matchingWr?.created_at) {
-      const qt = new Date(matchingWr.run_started_at).getTime() - new Date(matchingWr.created_at).getTime();
-      if (qt > 0) checkQueueDuration = qt;
+    const matchingWr = workflowRuns.find((wr) => wr.name === cr.name);
+    if (matchingWr) {
+      checkQueueDuration = computeQueueTime(matchingWr.run_started_at, matchingWr.created_at);
+    }
+    if (checkQueueDuration === null && cr.started_at) {
+      const matchingWrForJob = workflowRuns.find(
+        (wr) => wr.name === cr.name || wr.id === cr.id
+      );
+      if (matchingWrForJob) {
+        const jobs = workflowJobsMap.get(matchingWrForJob.id);
+        if (jobs) {
+          const matchingJob = jobs.find((j) => j.name === cr.name);
+          if (matchingJob?.started_at) {
+            checkQueueDuration = computeQueueTime(matchingJob.started_at, matchingWrForJob.created_at);
+          }
+        }
+      }
     }
     return {
       name: cr.name,
@@ -122,19 +172,30 @@ export function computePRMetrics(
     };
   });
 
-  const workflows: WorkflowMetrics[] = workflowRuns.map((wr) => {
+  const workflows: WorkflowMetrics[] = completedWorkflows.map((wr) => {
     const wfDuration = wr.run_started_at && wr.updated_at
       ? new Date(wr.updated_at).getTime() - new Date(wr.run_started_at).getTime()
       : null;
-    const wfQueueDuration = wr.run_started_at && wr.created_at
-      ? new Date(wr.run_started_at).getTime() - new Date(wr.created_at).getTime()
-      : null;
+    const wfQueueDuration = computeQueueTime(wr.run_started_at, wr.created_at);
+
+    const jobs = workflowJobsMap.get(wr.id);
+    const jobQueueTimes: number[] = [];
+    if (jobs) {
+      jobs.forEach((job) => {
+        if (job.started_at) {
+          const jt = computeQueueTime(job.started_at, wr.created_at);
+          if (jt !== null) jobQueueTimes.push(jt);
+        }
+      });
+    }
+
     return {
       name: wr.name,
       status: wr.status,
       conclusion: wr.conclusion,
       duration: wfDuration && wfDuration > 0 ? wfDuration : null,
-      queueDuration: wfQueueDuration && wfQueueDuration > 0 ? wfQueueDuration : null,
+      queueDuration: wfQueueDuration,
+      jobQueueDuration: jobQueueTimes.length > 0 ? median(jobQueueTimes) : wfQueueDuration,
       startedAt: wr.run_started_at ? new Date(wr.run_started_at) : null,
       completedAt: wr.updated_at ? new Date(wr.updated_at) : null,
     };
@@ -180,7 +241,20 @@ export async function fetchAllPRMetrics(
         fetchCheckRuns(pr.head.sha, token),
         fetchWorkflowRuns(pr.head.sha, token),
       ]);
-      const prMetrics = computePRMetrics(pr, checkRuns, workflowRuns);
+
+      const workflowJobsMap = new Map<number, GitHubWorkflowJob[]>();
+      const jobPromises = workflowRuns
+        .filter((wr) => wr.status === "completed")
+        .map(async (wr) => {
+          try {
+            const jobs = await fetchWorkflowJobs(wr.id, token);
+            workflowJobsMap.set(wr.id, jobs);
+          } catch { /* skip failed job fetches */ }
+        });
+
+      await Promise.all(jobPromises);
+
+      const prMetrics = computePRMetrics(pr, checkRuns, workflowRuns, workflowJobsMap);
       metrics.push(prMetrics);
     } catch {
       const prMetrics = computePRMetrics(pr, [], []);

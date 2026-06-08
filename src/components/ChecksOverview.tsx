@@ -50,7 +50,8 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
       pr.workflows.forEach((wf) => {
         const existing = wfMap.get(wf.name) || { durations: [], queueDurations: [], successCount: 0, failCount: 0, timeoutCount: 0, cancelCount: 0 };
         if (wf.duration) existing.durations.push(wf.duration);
-        if (wf.queueDuration) existing.queueDurations.push(wf.queueDuration);
+        if (wf.jobQueueDuration) existing.queueDurations.push(wf.jobQueueDuration);
+        else if (wf.queueDuration) existing.queueDurations.push(wf.queueDuration);
         if (wf.conclusion === "success") existing.successCount++;
         else if (wf.conclusion === "failure") existing.failCount++;
         else if (wf.conclusion === "timed_out") existing.timeoutCount++;
