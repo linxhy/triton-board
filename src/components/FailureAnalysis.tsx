@@ -18,8 +18,8 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
   const hasFailures = useMemo(() => {
     let anyFail = false;
     prs.forEach((pr) => {
-      pr.checks.forEach((c) => {
-        if (c.conclusion === "failure" || c.conclusion === "timed_out" || c.conclusion === "cancelled") {
+      pr.workflows.forEach((wf) => {
+        if (wf.conclusion === "failure" || wf.conclusion === "timed_out" || wf.conclusion === "cancelled") {
           anyFail = true;
         }
       });
@@ -28,20 +28,20 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
   }, [prs]);
 
   const data = useMemo(() => {
-    const checkStats = new Map<string, { success: number; failure: number; timed_out: number; cancelled: number; lastPR: number }>();
+    const wfStats = new Map<string, { success: number; failure: number; timed_out: number; cancelled: number; lastPR: number }>();
 
     prs.forEach((pr) => {
-      pr.checks.forEach((c) => {
-        const existing = checkStats.get(c.name) || { success: 0, failure: 0, timed_out: 0, cancelled: 0, lastPR: 0 };
-        if (c.conclusion === "success") existing.success++;
-        else if (c.conclusion === "failure") { existing.failure++; existing.lastPR = pr.prNumber; }
-        else if (c.conclusion === "timed_out") { existing.timed_out++; existing.lastPR = pr.prNumber; }
-        else if (c.conclusion === "cancelled") { existing.cancelled++; }
-        checkStats.set(c.name, existing);
+      pr.workflows.forEach((wf) => {
+        const existing = wfStats.get(wf.name) || { success: 0, failure: 0, timed_out: 0, cancelled: 0, lastPR: 0 };
+        if (wf.conclusion === "success") existing.success++;
+        else if (wf.conclusion === "failure") { existing.failure++; existing.lastPR = pr.prNumber; }
+        else if (wf.conclusion === "timed_out") { existing.timed_out++; existing.lastPR = pr.prNumber; }
+        else if (wf.conclusion === "cancelled") { existing.cancelled++; }
+        wfStats.set(wf.name, existing);
       });
     });
 
-    return Array.from(checkStats.entries())
+    return Array.from(wfStats.entries())
       .map(([name, stats]) => {
         const total = stats.success + stats.failure + stats.timed_out + stats.cancelled;
         const failTotal = stats.failure + stats.timed_out + stats.cancelled;
@@ -73,11 +73,11 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
   const summary = useMemo(() => {
     let success = 0, failure = 0, timedOut = 0, cancelled = 0;
     prs.forEach((pr) => {
-      pr.checks.forEach((c) => {
-        if (c.conclusion === "success") success++;
-        else if (c.conclusion === "failure") failure++;
-        else if (c.conclusion === "timed_out") timedOut++;
-        else if (c.conclusion === "cancelled") cancelled++;
+      pr.workflows.forEach((wf) => {
+        if (wf.conclusion === "success") success++;
+        else if (wf.conclusion === "failure") failure++;
+        else if (wf.conclusion === "timed_out") timedOut++;
+        else if (wf.conclusion === "cancelled") cancelled++;
       });
     });
     const total = success + failure + timedOut + cancelled;

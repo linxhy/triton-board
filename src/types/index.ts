@@ -46,12 +46,23 @@ export interface PRMetrics {
   e2eDuration: number | null;
   queueDuration: number | null;
   checks: CheckMetrics[];
+  workflows: WorkflowMetrics[];
   checksPassRate: number;
 }
 
 export interface CheckMetrics {
   name: string;
   status: "queued" | "in_progress" | "completed";
+  conclusion: string | null;
+  duration: number | null;
+  queueDuration: number | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+}
+
+export interface WorkflowMetrics {
+  name: string;
+  status: string;
   conclusion: string | null;
   duration: number | null;
   queueDuration: number | null;

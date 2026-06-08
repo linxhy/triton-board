@@ -1,4 +1,4 @@
-import type { GitHubPR, GitHubCheckRun, GitHubWorkflowRun, PRMetrics, CheckMetrics } from "@/types";
+import type { GitHubPR, GitHubCheckRun, GitHubWorkflowRun, PRMetrics, CheckMetrics, WorkflowMetrics } from "@/types";
 
 const REPO_OWNER = "triton-lang";
 const REPO_NAME = "triton-ascend";
@@ -122,6 +122,24 @@ export function computePRMetrics(
     };
   });
 
+  const workflows: WorkflowMetrics[] = workflowRuns.map((wr) => {
+    const wfDuration = wr.run_started_at && wr.updated_at
+      ? new Date(wr.updated_at).getTime() - new Date(wr.run_started_at).getTime()
+      : null;
+    const wfQueueDuration = wr.run_started_at && wr.created_at
+      ? new Date(wr.run_started_at).getTime() - new Date(wr.created_at).getTime()
+      : null;
+    return {
+      name: wr.name,
+      status: wr.status,
+      conclusion: wr.conclusion,
+      duration: wfDuration && wfDuration > 0 ? wfDuration : null,
+      queueDuration: wfQueueDuration && wfQueueDuration > 0 ? wfQueueDuration : null,
+      startedAt: wr.run_started_at ? new Date(wr.run_started_at) : null,
+      completedAt: wr.updated_at ? new Date(wr.updated_at) : null,
+    };
+  });
+
   const queueDuration = prQueueDuration;
 
   const totalChecks = checkRuns.length;
@@ -144,6 +162,7 @@ export function computePRMetrics(
     e2eDuration,
     queueDuration,
     checks,
+    workflows,
     checksPassRate,
   };
 }

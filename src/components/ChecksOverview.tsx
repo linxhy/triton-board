@@ -16,10 +16,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-type SortField = keyof CheckStat;
+type SortField = keyof WorkflowStat;
 type SortDir = "asc" | "desc";
 
-interface CheckStat {
+interface WorkflowStat {
   name: string;
   avgDuration: number;
   avgDurationRaw: number;
@@ -43,42 +43,43 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const data = useMemo((): CheckStat[] => {
-    const checkMap = new Map<string, { durations: number[]; queueDurations: number[]; successCount: number; failCount: number; timeoutCount: number }>();
+  const data = useMemo((): WorkflowStat[] => {
+    const wfMap = new Map<string, { durations: number[]; queueDurations: number[]; successCount: number; failCount: number; timeoutCount: number; cancelCount: number }>();
 
     prs.forEach((pr) => {
-      pr.checks.forEach((c) => {
-        const existing = checkMap.get(c.name) || { durations: [], queueDurations: [], successCount: 0, failCount: 0, timeoutCount: 0 };
-        if (c.duration) existing.durations.push(c.duration);
-        if (c.queueDuration) existing.queueDurations.push(c.queueDuration);
-        if (c.conclusion === "success") existing.successCount++;
-        if (c.conclusion === "failure") existing.failCount++;
-        if (c.conclusion === "timed_out") existing.timeoutCount++;
-        checkMap.set(c.name, existing);
+      pr.workflows.forEach((wf) => {
+        const existing = wfMap.get(wf.name) || { durations: [], queueDurations: [], successCount: 0, failCount: 0, timeoutCount: 0, cancelCount: 0 };
+        if (wf.duration) existing.durations.push(wf.duration);
+        if (wf.queueDuration) existing.queueDurations.push(wf.queueDuration);
+        if (wf.conclusion === "success") existing.successCount++;
+        else if (wf.conclusion === "failure") existing.failCount++;
+        else if (wf.conclusion === "timed_out") existing.timeoutCount++;
+        else if (wf.conclusion === "cancelled") existing.cancelCount++;
+        wfMap.set(wf.name, existing);
       });
     });
 
     const maxAvg = Math.max(
-      ...Array.from(checkMap.entries()).map(([, s]) =>
+      ...Array.from(wfMap.entries()).map(([, s]) =>
         s.durations.length > 0 ? s.durations.reduce((a, b) => a + b, 0) / s.durations.length : 0
       ),
       1
     );
 
-    return Array.from(checkMap.entries())
+    return Array.from(wfMap.entries())
       .map(([name, stats]) => {
         const avgDurationRaw = stats.durations.length > 0
           ? stats.durations.reduce((a, b) => a + b, 0) / stats.durations.length
           : 0;
-        const total = stats.successCount + stats.failCount + stats.timeoutCount;
+        const total = stats.successCount + stats.failCount + stats.timeoutCount + stats.cancelCount;
         const passRate = total > 0 ? stats.successCount / total : 0;
         const isFlaky = total >= 3 && passRate > 0.5 && passRate < 0.95;
 
         const sparkData = [...prs]
           .reverse()
           .map((pr) => {
-            const check = pr.checks.find((c) => c.name === name);
-            return check?.duration ? check.duration / 60000 : null;
+            const wf = pr.workflows.find((w) => w.name === name);
+            return wf?.duration ? wf.duration / 60000 : null;
           });
 
         const avgQueueRaw = stats.queueDurations.length > 0
@@ -100,7 +101,7 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
           durations: sparkData,
         };
       })
-      .sort((a: CheckStat, b: CheckStat) => {
+      .sort((a: WorkflowStat, b: WorkflowStat) => {
         const mul = sortDir === "desc" ? -1 : 1;
         const aVal = a[sortField];
         const bVal = b[sortField];
