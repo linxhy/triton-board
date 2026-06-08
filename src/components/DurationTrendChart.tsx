@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 const METRIC_CONFIG = {
   e2e: { label: "E2E 时长", color: "#38bdf8", unit: "h", divisor: 3600000 },
   queue: { label: "排队时长", color: "#f59e0b", unit: "m", divisor: 60000 },
-  checksTotal: { label: "Checks 总时长", color: "#10b981", unit: "m", divisor: 60000 },
+  wfTotal: { label: "Workflow 总时长", color: "#10b981", unit: "m", divisor: 60000 },
 } as const;
 
 type MetricKey = keyof typeof METRIC_CONFIG;
@@ -49,8 +49,8 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
       .reverse()
       .filter((pr) => pr.e2eDuration !== null)
       .map((pr) => {
-        const checksTotal = pr.checks.reduce(
-          (sum, c) => sum + (c.duration || 0),
+        const wfTotal = pr.workflows.reduce(
+          (sum, wf) => sum + (wf.duration || 0),
           0
         );
         return {
@@ -59,8 +59,8 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
           e2eRaw: pr.e2eDuration,
           queue: pr.queueDuration ? pr.queueDuration / METRIC_CONFIG.queue.divisor : 0,
           queueRaw: pr.queueDuration,
-          checksTotal: checksTotal / METRIC_CONFIG.checksTotal.divisor,
-          checksTotalRaw: checksTotal,
+          wfTotal: wfTotal / METRIC_CONFIG.wfTotal.divisor,
+          wfTotalRaw: wfTotal,
           author: pr.author,
         };
       });
@@ -71,7 +71,7 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
     const lines: Record<MetricKey, { p50: number; p90: number }> = {} as never;
     for (const key of activeMetrics) {
       const cfg = METRIC_CONFIG[key];
-      const rawKey = `${key}Raw` as "e2eRaw" | "queueRaw" | "checksTotalRaw";
+      const rawKey = `${key}Raw` as "e2eRaw" | "queueRaw" | "wfTotalRaw";
       const values = data.map((d) => d[rawKey]).filter((v): v is number => v != null && v > 0);
       if (values.length > 0) {
         lines[key] = {
@@ -169,7 +169,7 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
                 color: "#e2e8f0",
               }}
               formatter={(value: number, name: string) => {
-                const rawKey = `${name}Raw` as "e2eRaw" | "queueRaw" | "checksTotalRaw";
+                const rawKey = `${name}Raw` as "e2eRaw" | "queueRaw" | "wfTotalRaw";
                 const item = data.find((d) => d[name as keyof typeof d] === value);
                 const rawVal = item?.[rawKey];
                 return [rawVal ? formatDuration(rawVal) : `${value.toFixed(1)}${unitLabel}`, METRIC_CONFIG[name as MetricKey]?.label || name];

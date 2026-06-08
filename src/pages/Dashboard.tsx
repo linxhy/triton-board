@@ -45,12 +45,12 @@ export default function Dashboard() {
     const p90Queue = percentile(queueDurations, 90);
     const avgQueue = queueDurations.length > 0 ? queueDurations.reduce((s, v) => s + v, 0) / queueDurations.length : 0;
 
-    const totalChecks = prs.reduce((s, p) => s + p.checks.length, 0);
-    const successChecks = prs.reduce(
-      (s, p) => s + p.checks.filter((c) => c.conclusion === "success").length,
+    const totalWorkflows = prs.reduce((s, p) => s + p.workflows.length, 0);
+    const successWorkflows = prs.reduce(
+      (s, p) => s + p.workflows.filter((w) => w.conclusion === "success").length,
       0
     );
-    const checksPassRate = totalChecks > 0 ? successChecks / totalChecks : 0;
+    const checksPassRate = totalWorkflows > 0 ? successWorkflows / totalWorkflows : 0;
 
     const prevWithE2E = prevPRs.filter((p) => p.e2eDuration !== null);
     const prevAvgE2E = prevWithE2E.length > 0
@@ -60,12 +60,12 @@ export default function Dashboard() {
     const prevAvgQueue = prevWithQueue.length > 0
       ? prevWithQueue.reduce((s, p) => s + (p.queueDuration || 0), 0) / prevWithQueue.length
       : 0;
-    const prevTotalChecks = prevPRs.reduce((s, p) => s + p.checks.length, 0);
-    const prevSuccessChecks = prevPRs.reduce(
-      (s, p) => s + p.checks.filter((c) => c.conclusion === "success").length,
+    const prevTotalWorkflows = prevPRs.reduce((s, p) => s + p.workflows.length, 0);
+    const prevSuccessWorkflows = prevPRs.reduce(
+      (s, p) => s + p.workflows.filter((w) => w.conclusion === "success").length,
       0
     );
-    const prevPassRate = prevTotalChecks > 0 ? prevSuccessChecks / prevTotalChecks : 0;
+    const prevPassRate = prevTotalWorkflows > 0 ? prevSuccessWorkflows / prevTotalWorkflows : 0;
 
     return {
       avgE2E, p50E2E, p90E2E,
@@ -140,7 +140,7 @@ export default function Dashboard() {
         <KPICard
           title="Checks 通过率"
           value={formatPercent(kpis.checksPassRate)}
-          subtitle="所有 Check Run 的通过比例"
+          subtitle="所有 Workflow 的通过比例"
           icon={<CheckCircle2 className="w-4 h-4" />}
           accentColor="#10b981"
           trend={kpis.passRateChange.trend}

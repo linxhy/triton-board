@@ -60,6 +60,7 @@ export interface PRMetrics {
   checks: CheckMetrics[];
   workflows: WorkflowMetrics[];
   checksPassRate: number;
+  workflowPassRate: number;
 }
 
 export interface CheckMetrics {

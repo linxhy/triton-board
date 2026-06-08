@@ -39,8 +39,8 @@ export default function AuthorDistribution({ prs }: AuthorDistributionProps) {
         existing.totalE2E += pr.e2eDuration;
         existing.e2eCount += 1;
       }
-      if (pr.checks.length > 0) {
-        existing.totalPassRate += pr.checksPassRate;
+      if (pr.workflows.length > 0) {
+        existing.totalPassRate += pr.workflowPassRate;
         existing.passCount += 1;
       }
       if (pr.queueDuration !== null) {

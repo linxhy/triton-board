@@ -209,6 +209,12 @@ export function computePRMetrics(
   ).length;
   const checksPassRate = totalChecks > 0 ? successChecks / totalChecks : 0;
 
+  const totalWorkflows = workflows.length;
+  const successWorkflows = workflows.filter(
+    (wf) => wf.conclusion === "success"
+  ).length;
+  const workflowPassRate = totalWorkflows > 0 ? successWorkflows / totalWorkflows : 0;
+
   return {
     prNumber: pr.number,
     title: pr.title,
@@ -225,6 +231,7 @@ export function computePRMetrics(
     checks,
     workflows,
     checksPassRate,
+    workflowPassRate,
   };
 }
 

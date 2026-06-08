@@ -18,12 +18,12 @@ function computeHealthScore(prs: PRMetrics[]): {
     return { score: 0, passRateScore: 0, durationScore: 0, stabilityScore: 0, queueScore: 0, flakyCount: 0 };
   }
 
-  const totalChecks = prs.reduce((s, p) => s + p.checks.length, 0);
-  const successChecks = prs.reduce(
-    (s, p) => s + p.checks.filter((c) => c.conclusion === "success").length,
+  const totalWorkflows = prs.reduce((s, p) => s + p.workflows.length, 0);
+  const successWorkflows = prs.reduce(
+    (s, p) => s + p.workflows.filter((w) => w.conclusion === "success").length,
     0
   );
-  const passRate = totalChecks > 0 ? successChecks / totalChecks : 0;
+  const passRate = totalWorkflows > 0 ? successWorkflows / totalWorkflows : 0;
   const passRateScore = passRate * 100;
 
   const e2eDurations = prs.filter((p) => p.e2eDuration !== null).map((p) => p.e2eDuration!);
@@ -31,19 +31,19 @@ function computeHealthScore(prs: PRMetrics[]): {
   const targetDuration = 4 * 3600000;
   const durationScore = p90Duration > 0 ? Math.max(0, Math.min(100, (1 - p90Duration / targetDuration / 2) * 100)) : 50;
 
-  const checkStats = new Map<string, { success: number; total: number }>();
+  const wfStats = new Map<string, { success: number; total: number }>();
   prs.forEach((pr) => {
-    pr.checks.forEach((c) => {
-      const existing = checkStats.get(c.name) || { success: 0, total: 0 };
+    pr.workflows.forEach((wf) => {
+      const existing = wfStats.get(wf.name) || { success: 0, total: 0 };
       existing.total += 1;
-      if (c.conclusion === "success") existing.success += 1;
-      checkStats.set(c.name, existing);
+      if (wf.conclusion === "success") existing.success += 1;
+      wfStats.set(wf.name, existing);
     });
   });
-  const flakyChecks = Array.from(checkStats.entries()).filter(
+  const flakyWorkflows = Array.from(wfStats.entries()).filter(
     ([, stats]) => stats.total >= 3 && stats.success / stats.total > 0.5 && stats.success / stats.total < 0.95
   );
-  const flakyRate = checkStats.size > 0 ? flakyChecks.length / checkStats.size : 0;
+  const flakyRate = wfStats.size > 0 ? flakyWorkflows.length / wfStats.size : 0;
   const stabilityScore = Math.max(0, (1 - flakyRate * 3) * 100);
 
   const queueDurations = prs.filter((p) => p.queueDuration !== null).map((p) => p.queueDuration!);
@@ -55,7 +55,7 @@ function computeHealthScore(prs: PRMetrics[]): {
     passRateScore * 0.3 + durationScore * 0.25 + stabilityScore * 0.25 + queueScore * 0.2
   );
 
-  return { score, passRateScore: Math.round(passRateScore), durationScore: Math.round(durationScore), stabilityScore: Math.round(stabilityScore), queueScore: Math.round(queueScore), flakyCount: flakyChecks.length };
+  return { score, passRateScore: Math.round(passRateScore), durationScore: Math.round(durationScore), stabilityScore: Math.round(stabilityScore), queueScore: Math.round(queueScore), flakyCount: flakyWorkflows.length };
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -125,7 +125,7 @@ export default function CIHealthScore({ prs }: CIHealthScoreProps) {
         <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
           <span className="text-xs text-amber-300">
-            检测到 {health.flakyCount} 个疑似 Flaky Check（通过率 50%-95%）
+            检测到 {health.flakyCount} 个疑似 Flaky Workflow（通过率 50%-95%）
           </span>
         </div>
       )}

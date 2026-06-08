@@ -11,7 +11,7 @@ interface PRTableProps {
 }
 
 export default function PRTable({ prs, onSelectPR, selectedPR }: PRTableProps) {
-  const [sortField, setSortField] = useState<"prNumber" | "e2eDuration" | "queueDuration" | "checksPassRate">("prNumber");
+  const [sortField, setSortField] = useState<"prNumber" | "e2eDuration" | "queueDuration" | "workflowPassRate">("prNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const sorted = [...prs].sort((a, b) => {
@@ -72,9 +72,9 @@ export default function PRTable({ prs, onSelectPR, selectedPR }: PRTableProps) {
               </th>
               <th
                 className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-200 transition-colors"
-                onClick={() => toggleSort("checksPassRate")}
+                onClick={() => toggleSort("workflowPassRate")}
               >
-                Checks通过率 <SortIndicator field="checksPassRate" />
+                Workflow通过率 <SortIndicator field="workflowPassRate" />
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                 创建时间
@@ -114,14 +114,14 @@ export default function PRTable({ prs, onSelectPR, selectedPR }: PRTableProps) {
                   <span
                     className={cn(
                       "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-mono",
-                      pr.checksPassRate >= 0.9
+                      pr.workflowPassRate >= 0.9
                         ? "bg-emerald-500/15 text-emerald-400"
-                        : pr.checksPassRate >= 0.5
+                        : pr.workflowPassRate >= 0.5
                         ? "bg-amber-500/15 text-amber-400"
                         : "bg-rose-500/15 text-rose-400"
                     )}
                   >
-                    {formatPercent(pr.checksPassRate)}
+                    {formatPercent(pr.workflowPassRate)}
                   </span>
                 </td>
                 <td className="px-4 py-3">
