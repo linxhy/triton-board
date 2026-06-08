@@ -11,7 +11,7 @@ import TokenConfig from "@/components/TokenConfig";
 import { formatDuration, formatPercent, percentile, formatChangePercent } from "@/utils/format";
 
 export default function Dashboard() {
-  const { prs, prevPRs, loading, error, fetchPRData, timeRange, autoRefresh, lastUpdated } = useAppStore();
+  const { prs, prevPRs, loading, error, fetchPRData, timeRange, branch, autoRefresh, lastUpdated } = useAppStore();
   const rangeLabel = TIME_RANGE_CONFIG[timeRange].label;
 
   useEffect(() => {
@@ -157,7 +157,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ChecksOverview prs={prs} />
+      <ChecksOverview prs={prs} key={`checks-${timeRange}-${branch}`} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <FailureAnalysis prs={prs} />
