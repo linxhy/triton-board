@@ -30,6 +30,7 @@ export interface PRMetrics {
   mergedAt: Date | null;
   closedAt: Date | null;
   headSha: string;
+  branch: string;
   e2eDuration: number | null;
   queueDuration: number | null;
   checks: CheckMetrics[];

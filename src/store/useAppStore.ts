@@ -17,13 +17,31 @@ function getTimeRangeStart(range: TimeRange): Date {
   return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 }
 
+function applyFilters(allPRs: PRMetrics[], timeRange: TimeRange, branch: string): PRMetrics[] {
+  const start = getTimeRangeStart(timeRange);
+  return allPRs.filter((pr) => {
+    if (pr.createdAt < start) return false;
+    if (branch !== "all" && pr.branch !== branch) return false;
+    return true;
+  });
+}
+
+function extractBranches(prs: PRMetrics[]): string[] {
+  const branchSet = new Set<string>();
+  prs.forEach((pr) => branchSet.add(pr.branch));
+  return Array.from(branchSet).sort();
+}
+
 interface AppStore {
   token: string;
   setToken: (token: string) => void;
   allPRs: PRMetrics[];
   prs: PRMetrics[];
+  branches: string[];
   timeRange: TimeRange;
   setTimeRange: (range: TimeRange) => void;
+  branch: string;
+  setBranch: (branch: string) => void;
   loading: boolean;
   setLoading: (loading: boolean) => void;
   error: string | null;
@@ -39,26 +57,33 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   allPRs: [],
   prs: [],
+  branches: [],
   timeRange: (sessionStorage.getItem("time_range") as TimeRange) || "month",
   setTimeRange: (range: TimeRange) => {
     sessionStorage.setItem("time_range", range);
-    const { allPRs } = get();
-    const start = getTimeRangeStart(range);
-    const filtered = allPRs.filter((pr) => pr.createdAt >= start);
+    const { allPRs, branch } = get();
+    const filtered = applyFilters(allPRs, range, branch);
     set({ timeRange: range, prs: filtered });
+  },
+  branch: sessionStorage.getItem("branch") || "all",
+  setBranch: (branch: string) => {
+    sessionStorage.setItem("branch", branch);
+    const { allPRs, timeRange } = get();
+    const filtered = applyFilters(allPRs, timeRange, branch);
+    set({ branch, prs: filtered });
   },
   loading: false,
   setLoading: (loading: boolean) => set({ loading }),
   error: null,
   setError: (error: string | null) => set({ error }),
   fetchPRData: async () => {
-    const { token, timeRange } = get();
+    const { token, timeRange, branch } = get();
     set({ loading: true, error: null });
     try {
       const allPRs = await fetchAllPRMetrics(token || undefined, 100);
-      const start = getTimeRangeStart(timeRange);
-      const prs = allPRs.filter((pr) => pr.createdAt >= start);
-      set({ allPRs, prs, loading: false });
+      const branches = extractBranches(allPRs);
+      const filtered = applyFilters(allPRs, timeRange, branch);
+      set({ allPRs, prs: filtered, branches, loading: false });
     } catch (err) {
       const message = err instanceof Error ? err.message : "获取数据失败";
       set({ error: message, loading: false });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { PRMetrics } from "@/types";
 import { formatDuration, formatPercent, formatDate, truncateTitle } from "@/utils/format";
-import { ChevronRight, GitMerge, GitPullRequest, XCircle } from "lucide-react";
+import { ChevronRight, GitMerge, GitPullRequest, XCircle, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PRTableProps {
@@ -122,6 +122,14 @@ export default function PRTable({ prs, onSelectPR, selectedPR }: PRTableProps) {
                     )}
                   >
                     {formatPercent(pr.checksPassRate)}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                    <GitBranch className="w-3 h-3" />
+                    <span className="font-mono truncate max-w-[120px]" title={pr.branch}>
+                      {pr.branch.length > 20 ? pr.branch.slice(0, 20) + "..." : pr.branch}
+                    </span>
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-400">

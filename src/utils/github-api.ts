@@ -101,6 +101,7 @@ export function computePRMetrics(
     mergedAt,
     closedAt,
     headSha: pr.head.sha,
+    branch: pr.head.ref,
     e2eDuration,
     queueDuration,
     checks,
