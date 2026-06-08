@@ -68,7 +68,7 @@ export async function fetchWorkflowRuns(
     hasMore = data.workflow_runs.length === 100;
     page++;
   }
-  return allRuns.filter((wr) => wr.run_attempt === 1);
+  return allRuns.filter((wr) => !wr.run_attempt || wr.run_attempt === 1);
 }
 
 export async function fetchWorkflowJobs(
@@ -97,7 +97,7 @@ function parseDuration(start: string | null, end: string | null): number | null 
 function computeQueueTime(startedAt: string | null, createdAt: string | null): number | null {
   if (!startedAt || !createdAt) return null;
   const qt = new Date(startedAt).getTime() - new Date(createdAt).getTime();
-  if (qt <= 0) return null;
+  if (qt < 0) return null;
   if (qt > MAX_QUEUE_TIME_MS) return null;
   return qt;
 }
@@ -131,9 +131,17 @@ export function computePRMetrics(
 
   const workflowQueueTimes: number[] = [];
   completedWorkflows.forEach((wr) => {
-    const qt = computeQueueTime(wr.run_started_at, wr.created_at);
-    if (qt !== null) {
-      workflowQueueTimes.push(qt);
+    const jobs = workflowJobsMap.get(wr.id);
+    if (jobs && jobs.length > 0) {
+      jobs.forEach((job) => {
+        if (job.started_at) {
+          const jt = computeQueueTime(job.started_at, wr.created_at);
+          if (jt !== null) workflowQueueTimes.push(jt);
+        }
+      });
+    } else {
+      const qt = computeQueueTime(wr.run_started_at, wr.created_at);
+      if (qt !== null) workflowQueueTimes.push(qt);
     }
   });
 

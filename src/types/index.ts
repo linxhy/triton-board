@@ -30,7 +30,7 @@ export interface GitHubWorkflowRun {
   updated_at: string;
   head_sha: string;
   event: string;
-  run_attempt: number;
+  run_attempt?: number;
 }
 
 export interface GitHubWorkflowJob {

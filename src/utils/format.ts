@@ -1,5 +1,6 @@
 export function formatDuration(ms: number | null): string {
   if (ms === null) return "—";
+  if (ms < 1000) return "<1秒";
   const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
