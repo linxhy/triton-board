@@ -39,18 +39,34 @@ export async function fetchCheckRuns(
   sha: string,
   token?: string
 ): Promise<GitHubCheckRun[]> {
-  const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/commits/${sha}/check-runs?per_page=100`;
-  const data = await fetchJSON<{ check_runs: GitHubCheckRun[] }>(url, token);
-  return data.check_runs;
+  const allRuns: GitHubCheckRun[] = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/commits/${sha}/check-runs?per_page=100&page=${page}`;
+    const data = await fetchJSON<{ check_runs: GitHubCheckRun[] }>(url, token);
+    allRuns.push(...data.check_runs);
+    hasMore = data.check_runs.length === 100;
+    page++;
+  }
+  return allRuns;
 }
 
 export async function fetchWorkflowRuns(
   sha: string,
   token?: string
 ): Promise<GitHubWorkflowRun[]> {
-  const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?head_sha=${sha}&per_page=100`;
-  const data = await fetchJSON<{ workflow_runs: GitHubWorkflowRun[] }>(url, token);
-  return data.workflow_runs;
+  const allRuns: GitHubWorkflowRun[] = [];
+  let page = 1;
+  let hasMore = true;
+  while (hasMore) {
+    const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?head_sha=${sha}&per_page=100&page=${page}`;
+    const data = await fetchJSON<{ workflow_runs: GitHubWorkflowRun[] }>(url, token);
+    allRuns.push(...data.workflow_runs);
+    hasMore = data.workflow_runs.length === 100;
+    page++;
+  }
+  return allRuns;
 }
 
 function parseDuration(start: string | null, end: string | null): number | null {

@@ -15,6 +15,18 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
   const [sortField, setSortField] = useState<SortField>("failRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
+  const hasFailures = useMemo(() => {
+    let anyFail = false;
+    prs.forEach((pr) => {
+      pr.checks.forEach((c) => {
+        if (c.conclusion === "failure" || c.conclusion === "timed_out" || c.conclusion === "cancelled") {
+          anyFail = true;
+        }
+      });
+    });
+    return anyFail;
+  }, [prs]);
+
   const data = useMemo(() => {
     const checkStats = new Map<string, { success: number; failure: number; timed_out: number; cancelled: number; lastPR: number }>();
 
@@ -46,7 +58,6 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
           lastPR: stats.lastPR,
         };
       })
-      .filter((d) => d.failTotal > 0)
       .sort((a, b) => {
         const mul = sortDir === "desc" ? -1 : 1;
         switch (sortField) {
@@ -89,7 +100,7 @@ export default function FailureAnalysis({ prs }: FailureAnalysisProps) {
     );
   }
 
-  if (data.length === 0) {
+  if (!hasFailures) {
     return (
       <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-xl">
         <div className="flex items-center justify-between mb-4">
