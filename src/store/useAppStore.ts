@@ -37,6 +37,7 @@ interface AppStore {
   setToken: (token: string) => void;
   allPRs: PRMetrics[];
   prs: PRMetrics[];
+  prevPRs: PRMetrics[];
   branches: string[];
   timeRange: TimeRange;
   setTimeRange: (range: TimeRange) => void;
@@ -46,6 +47,9 @@ interface AppStore {
   setLoading: (loading: boolean) => void;
   error: string | null;
   setError: (error: string | null) => void;
+  lastUpdated: Date | null;
+  autoRefresh: boolean;
+  setAutoRefresh: (v: boolean) => void;
   fetchPRData: () => Promise<void>;
 }
 
@@ -57,33 +61,37 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   allPRs: [],
   prs: [],
+  prevPRs: [],
   branches: [],
   timeRange: (sessionStorage.getItem("time_range") as TimeRange) || "month",
   setTimeRange: (range: TimeRange) => {
     sessionStorage.setItem("time_range", range);
-    const { allPRs, branch } = get();
+    const { allPRs, branch, prs } = get();
     const filtered = applyFilters(allPRs, range, branch);
-    set({ timeRange: range, prs: filtered });
+    set({ timeRange: range, prevPRs: prs, prs: filtered });
   },
   branch: sessionStorage.getItem("branch") || "all",
   setBranch: (branch: string) => {
     sessionStorage.setItem("branch", branch);
-    const { allPRs, timeRange } = get();
+    const { allPRs, timeRange, prs } = get();
     const filtered = applyFilters(allPRs, timeRange, branch);
-    set({ branch, prs: filtered });
+    set({ branch, prevPRs: prs, prs: filtered });
   },
   loading: false,
   setLoading: (loading: boolean) => set({ loading }),
   error: null,
   setError: (error: string | null) => set({ error }),
+  lastUpdated: null,
+  autoRefresh: true,
+  setAutoRefresh: (v: boolean) => set({ autoRefresh: v }),
   fetchPRData: async () => {
-    const { token, timeRange, branch } = get();
+    const { token, timeRange, branch, prs } = get();
     set({ loading: true, error: null });
     try {
       const allPRs = await fetchAllPRMetrics(token || undefined, 100);
       const branches = extractBranches(allPRs);
       const filtered = applyFilters(allPRs, timeRange, branch);
-      set({ allPRs, prs: filtered, branches, loading: false });
+      set({ allPRs, prs: filtered, prevPRs: prs, branches, loading: false, lastUpdated: new Date() });
     } catch (err) {
       const message = err instanceof Error ? err.message : "获取数据失败";
       set({ error: message, loading: false });

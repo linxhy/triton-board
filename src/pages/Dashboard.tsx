@@ -2,14 +2,17 @@ import { useEffect, useMemo } from "react";
 import { Clock, Timer, GitPullRequest, CheckCircle2 } from "lucide-react";
 import { useAppStore, TIME_RANGE_CONFIG } from "@/store/useAppStore";
 import KPICard from "@/components/KPICard";
+import CIHealthScore from "@/components/CIHealthScore";
 import DurationTrendChart from "@/components/DurationTrendChart";
 import ChecksDetailChart from "@/components/ChecksDetailChart";
 import ChecksRankingChart from "@/components/ChecksRankingChart";
+import FailureAnalysis from "@/components/FailureAnalysis";
+import AuthorDistribution from "@/components/AuthorDistribution";
 import TokenConfig from "@/components/TokenConfig";
-import { formatDuration, formatPercent } from "@/utils/format";
+import { formatDuration, formatPercent, percentile, formatChangePercent } from "@/utils/format";
 
 export default function Dashboard() {
-  const { prs, loading, error, fetchPRData, timeRange } = useAppStore();
+  const { prs, prevPRs, loading, error, fetchPRData, timeRange, autoRefresh, lastUpdated } = useAppStore();
   const rangeLabel = TIME_RANGE_CONFIG[timeRange].label;
 
   useEffect(() => {
@@ -18,17 +21,31 @@ export default function Dashboard() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchPRData();
+      }
+    }, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [autoRefresh, fetchPRData]);
+
   const kpis = useMemo(() => {
     const withE2E = prs.filter((p) => p.e2eDuration !== null);
     const withQueue = prs.filter((p) => p.queueDuration !== null);
-    const avgE2E =
-      withE2E.length > 0
-        ? withE2E.reduce((s, p) => s + (p.e2eDuration || 0), 0) / withE2E.length
-        : 0;
-    const avgQueue =
-      withQueue.length > 0
-        ? withQueue.reduce((s, p) => s + (p.queueDuration || 0), 0) / withQueue.length
-        : 0;
+
+    const e2eDurations = withE2E.map((p) => p.e2eDuration!);
+    const queueDurations = withQueue.map((p) => p.queueDuration!);
+
+    const p50E2E = percentile(e2eDurations, 50);
+    const p90E2E = percentile(e2eDurations, 90);
+    const avgE2E = e2eDurations.length > 0 ? e2eDurations.reduce((s, v) => s + v, 0) / e2eDurations.length : 0;
+
+    const p50Queue = percentile(queueDurations, 50);
+    const p90Queue = percentile(queueDurations, 90);
+    const avgQueue = queueDurations.length > 0 ? queueDurations.reduce((s, v) => s + v, 0) / queueDurations.length : 0;
+
     const totalChecks = prs.reduce((s, p) => s + p.checks.length, 0);
     const successChecks = prs.reduce(
       (s, p) => s + p.checks.filter((c) => c.conclusion === "success").length,
@@ -36,8 +53,31 @@ export default function Dashboard() {
     );
     const checksPassRate = totalChecks > 0 ? successChecks / totalChecks : 0;
 
-    return { avgE2E, avgQueue, totalPRs: prs.length, checksPassRate };
-  }, [prs]);
+    const prevWithE2E = prevPRs.filter((p) => p.e2eDuration !== null);
+    const prevAvgE2E = prevWithE2E.length > 0
+      ? prevWithE2E.reduce((s, p) => s + (p.e2eDuration || 0), 0) / prevWithE2E.length
+      : 0;
+    const prevWithQueue = prevPRs.filter((p) => p.queueDuration !== null);
+    const prevAvgQueue = prevWithQueue.length > 0
+      ? prevWithQueue.reduce((s, p) => s + (p.queueDuration || 0), 0) / prevWithQueue.length
+      : 0;
+    const prevTotalChecks = prevPRs.reduce((s, p) => s + p.checks.length, 0);
+    const prevSuccessChecks = prevPRs.reduce(
+      (s, p) => s + p.checks.filter((c) => c.conclusion === "success").length,
+      0
+    );
+    const prevPassRate = prevTotalChecks > 0 ? prevSuccessChecks / prevTotalChecks : 0;
+
+    return {
+      avgE2E, p50E2E, p90E2E,
+      avgQueue, p50Queue, p90Queue,
+      totalPRs: prs.length,
+      checksPassRate,
+      e2eChange: formatChangePercent(avgE2E, prevAvgE2E),
+      queueChange: formatChangePercent(avgQueue, prevAvgQueue),
+      passRateChange: formatChangePercent(checksPassRate, prevPassRate),
+    };
+  }, [prs, prevPRs]);
 
   if (loading && prs.length === 0) {
     return (
@@ -62,24 +102,34 @@ export default function Dashboard() {
     );
   }
 
+  const invertTrend = (trend: "up" | "down" | "neutral") => {
+    if (trend === "up") return "down";
+    if (trend === "down") return "up";
+    return "neutral";
+  };
+
   return (
     <div className="space-y-6">
       <TokenConfig />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
-          title="平均 E2E 时长"
+          title="E2E 时长"
           value={formatDuration(kpis.avgE2E)}
-          subtitle={`${kpis.totalPRs} 个 PR（${rangeLabel}）`}
+          subtitle={`P50: ${formatDuration(kpis.p50E2E)} · P90: ${formatDuration(kpis.p90E2E)}（${rangeLabel}）`}
           icon={<Clock className="w-4 h-4" />}
           accentColor="#38bdf8"
+          trend={invertTrend(kpis.e2eChange.trend)}
+          trendValue={kpis.e2eChange.value}
         />
         <KPICard
-          title="平均排队时长"
+          title="排队时长"
           value={formatDuration(kpis.avgQueue)}
-          subtitle="首个 Check 启动前的等待"
+          subtitle={`P50: ${formatDuration(kpis.p50Queue)} · P90: ${formatDuration(kpis.p90Queue)}`}
           icon={<Timer className="w-4 h-4" />}
           accentColor="#f59e0b"
+          trend={invertTrend(kpis.queueChange.trend)}
+          trendValue={kpis.queueChange.value}
         />
         <KPICard
           title="PR 总数"
@@ -94,14 +144,34 @@ export default function Dashboard() {
           subtitle="所有 Check Run 的通过比例"
           icon={<CheckCircle2 className="w-4 h-4" />}
           accentColor="#10b981"
+          trend={kpis.passRateChange.trend}
+          trendValue={kpis.passRateChange.value}
         />
       </div>
 
-      <DurationTrendChart prs={prs} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2">
+          <DurationTrendChart prs={prs} />
+        </div>
+        <div>
+          <CIHealthScore prs={prs} />
+        </div>
+      </div>
 
       <ChecksDetailChart prs={prs} />
 
-      <ChecksRankingChart prs={prs} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChecksRankingChart prs={prs} />
+        <FailureAnalysis prs={prs} />
+      </div>
+
+      <AuthorDistribution prs={prs} />
+
+      {lastUpdated && (
+        <div className="text-center text-[10px] text-slate-600">
+          上次更新: {lastUpdated.toLocaleTimeString("zh-CN")} · 每5分钟自动刷新 · {autoRefresh ? "自动刷新已开启" : "自动刷新已关闭"}
+        </div>
+      )}
     </div>
   );
 }

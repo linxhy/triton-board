@@ -54,3 +54,20 @@ export function truncateTitle(title: string, maxLength: number = 50): string {
   if (title.length <= maxLength) return title;
   return title.slice(0, maxLength) + "...";
 }
+
+export function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.ceil((p / 100) * sorted.length) - 1;
+  return sorted[Math.max(0, idx)];
+}
+
+export function formatChangePercent(current: number, previous: number): { trend: "up" | "down" | "neutral"; value: string } {
+  if (previous === 0) return { trend: "neutral", value: "—" };
+  const change = ((current - previous) / previous) * 100;
+  if (Math.abs(change) < 1) return { trend: "neutral", value: "持平" };
+  return {
+    trend: change > 0 ? "up" : "down",
+    value: `${Math.abs(change).toFixed(0)}% vs 上周`,
+  };
+}

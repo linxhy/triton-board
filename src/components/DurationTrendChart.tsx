@@ -8,9 +8,10 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  ReferenceLine,
 } from "recharts";
 import type { PRMetrics } from "@/types";
-import { formatDuration } from "@/utils/format";
+import { formatDuration, percentile } from "@/utils/format";
 import { cn } from "@/lib/utils";
 
 const METRIC_CONFIG = {
@@ -29,6 +30,7 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
   const [activeMetrics, setActiveMetrics] = useState<Set<MetricKey>>(
     new Set(["e2e", "queue"])
   );
+  const [showPercentiles, setShowPercentiles] = useState(true);
 
   const toggleMetric = (key: MetricKey) => {
     setActiveMetrics((prev) => {
@@ -64,6 +66,23 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
       });
   }, [prs]);
 
+  const referenceLines = useMemo(() => {
+    if (!showPercentiles) return {};
+    const lines: Record<MetricKey, { p50: number; p90: number }> = {} as never;
+    for (const key of activeMetrics) {
+      const cfg = METRIC_CONFIG[key];
+      const rawKey = `${key}Raw` as "e2eRaw" | "queueRaw" | "checksTotalRaw";
+      const values = data.map((d) => d[rawKey]).filter((v): v is number => v != null && v > 0);
+      if (values.length > 0) {
+        lines[key] = {
+          p50: percentile(values, 50) / cfg.divisor,
+          p90: percentile(values, 90) / cfg.divisor,
+        };
+      }
+    }
+    return lines;
+  }, [data, activeMetrics, showPercentiles]);
+
   const maxDivisor = useMemo(() => {
     let max: number = METRIC_CONFIG.e2e.divisor;
     for (const key of activeMetrics) {
@@ -80,7 +99,19 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-xl">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-slate-300">时长趋势</h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPercentiles(!showPercentiles)}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all border",
+              showPercentiles
+                ? "border-white/[0.12] bg-white/[0.06] text-slate-200"
+                : "border-transparent bg-transparent text-slate-500 hover:text-slate-300"
+            )}
+          >
+            P50/P90
+          </button>
+          <div className="w-px h-4 bg-white/[0.08]" />
           {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
             const cfg = METRIC_CONFIG[key];
             const active = activeMetrics.has(key);
@@ -152,6 +183,38 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
               wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }}
               iconSize={8}
             />
+            {showPercentiles && (Object.keys(referenceLines) as MetricKey[]).map((key) => {
+              const ref = referenceLines[key];
+              if (!ref) return null;
+              const cfg = METRIC_CONFIG[key];
+              return (
+                <ReferenceLine
+                  key={`p50_${key}`}
+                  y={ref.p50}
+                  stroke={cfg.color}
+                  strokeDasharray="6 3"
+                  strokeOpacity={0.5}
+                  strokeWidth={1}
+                  label={{ value: "P50", position: "right", fill: cfg.color, fontSize: 10, opacity: 0.7 }}
+                />
+              );
+            })}
+            {showPercentiles && (Object.keys(referenceLines) as MetricKey[]).map((key) => {
+              const ref = referenceLines[key];
+              if (!ref) return null;
+              const cfg = METRIC_CONFIG[key];
+              return (
+                <ReferenceLine
+                  key={`p90_${key}`}
+                  y={ref.p90}
+                  stroke={cfg.color}
+                  strokeDasharray="2 4"
+                  strokeOpacity={0.4}
+                  strokeWidth={1}
+                  label={{ value: "P90", position: "right", fill: cfg.color, fontSize: 10, opacity: 0.5 }}
+                />
+              );
+            })}
             {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => {
               const cfg = METRIC_CONFIG[key];
               if (!activeMetrics.has(key)) return null;
