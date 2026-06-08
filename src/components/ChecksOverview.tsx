@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import type { PRMetrics } from "@/types";
 import { formatDuration, formatDurationShort, formatPercent, percentile } from "@/utils/format";
 import { cn } from "@/lib/utils";
@@ -174,7 +174,7 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
             {data.map((row) => {
               const isExpanded = expanded === row.name;
               return (
-                <tbody key={row.name}>
+                <Fragment key={row.name}>
                   <tr
                     className={cn(
                       "border-b border-white/[0.03] cursor-pointer transition-colors",
@@ -279,7 +279,7 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
                       </td>
                     </tr>
                   )}
-                </tbody>
+                </Fragment>
               );
             })}
           </tbody>

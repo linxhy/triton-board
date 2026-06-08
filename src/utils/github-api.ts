@@ -74,18 +74,27 @@ export function computePRMetrics(
     ? closedAt.getTime() - createdAt.getTime()
     : null;
 
-  const workflowQueueMap = new Map<string, number>();
+  const workflowQueueTimes: number[] = [];
   workflowRuns.forEach((wr) => {
     if (wr.run_started_at && wr.created_at) {
       const queueTime = new Date(wr.run_started_at).getTime() - new Date(wr.created_at).getTime();
       if (queueTime > 0) {
-        workflowQueueMap.set(wr.name, queueTime);
+        workflowQueueTimes.push(queueTime);
       }
     }
   });
 
+  const prQueueDuration = workflowQueueTimes.length > 0
+    ? workflowQueueTimes.reduce((a, b) => a + b, 0) / workflowQueueTimes.length
+    : null;
+
   const checks: CheckMetrics[] = checkRuns.map((cr) => {
-    const checkQueueDuration = workflowQueueMap.get(cr.name) || null;
+    const matchingWr = workflowRuns.find((wr) => wr.name === cr.name);
+    let checkQueueDuration: number | null = null;
+    if (matchingWr?.run_started_at && matchingWr?.created_at) {
+      const qt = new Date(matchingWr.run_started_at).getTime() - new Date(matchingWr.created_at).getTime();
+      if (qt > 0) checkQueueDuration = qt;
+    }
     return {
       name: cr.name,
       status: cr.status,
@@ -97,10 +106,7 @@ export function computePRMetrics(
     };
   });
 
-  const checksWithQueue = checks.filter((c) => c.queueDuration !== null);
-  const queueDuration = checksWithQueue.length > 0
-    ? checksWithQueue.reduce((sum, c) => sum + (c.queueDuration || 0), 0) / checksWithQueue.length
-    : null;
+  const queueDuration = prQueueDuration;
 
   const totalChecks = checkRuns.length;
   const successChecks = checkRuns.filter(
