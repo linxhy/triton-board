@@ -4,8 +4,7 @@ import { useAppStore, TIME_RANGE_CONFIG } from "@/store/useAppStore";
 import KPICard from "@/components/KPICard";
 import CIHealthScore from "@/components/CIHealthScore";
 import DurationTrendChart from "@/components/DurationTrendChart";
-import ChecksDetailChart from "@/components/ChecksDetailChart";
-import ChecksRankingChart from "@/components/ChecksRankingChart";
+import ChecksOverview from "@/components/ChecksOverview";
 import FailureAnalysis from "@/components/FailureAnalysis";
 import AuthorDistribution from "@/components/AuthorDistribution";
 import TokenConfig from "@/components/TokenConfig";
@@ -158,14 +157,12 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ChecksDetailChart prs={prs} />
+      <ChecksOverview prs={prs} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChecksRankingChart prs={prs} />
         <FailureAnalysis prs={prs} />
+        <AuthorDistribution prs={prs} />
       </div>
-
-      <AuthorDistribution prs={prs} />
 
       {lastUpdated && (
         <div className="text-center text-[10px] text-slate-600">
