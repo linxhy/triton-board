@@ -16,8 +16,23 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-type SortField = "avgDuration" | "passRate" | "runs" | "flaky";
+type SortField = keyof CheckStat;
 type SortDir = "asc" | "desc";
+
+interface CheckStat {
+  name: string;
+  avgDuration: number;
+  avgDurationRaw: number;
+  avgQueueRaw: number;
+  p50Duration: number;
+  p90Duration: number;
+  runs: number;
+  passRate: number;
+  failCount: number;
+  timeoutCount: number;
+  isFlaky: boolean;
+  durations: (number | null)[];
+}
 
 interface ChecksOverviewProps {
   prs: PRMetrics[];
@@ -28,13 +43,14 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const data = useMemo(() => {
-    const checkMap = new Map<string, { durations: number[]; successCount: number; failCount: number; timeoutCount: number }>();
+  const data = useMemo((): CheckStat[] => {
+    const checkMap = new Map<string, { durations: number[]; queueDurations: number[]; successCount: number; failCount: number; timeoutCount: number }>();
 
     prs.forEach((pr) => {
       pr.checks.forEach((c) => {
-        const existing = checkMap.get(c.name) || { durations: [], successCount: 0, failCount: 0, timeoutCount: 0 };
+        const existing = checkMap.get(c.name) || { durations: [], queueDurations: [], successCount: 0, failCount: 0, timeoutCount: 0 };
         if (c.duration) existing.durations.push(c.duration);
+        if (c.queueDuration) existing.queueDurations.push(c.queueDuration);
         if (c.conclusion === "success") existing.successCount++;
         if (c.conclusion === "failure") existing.failCount++;
         if (c.conclusion === "timed_out") existing.timeoutCount++;
@@ -65,10 +81,15 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
             return check?.duration ? check.duration / 60000 : null;
           });
 
+        const avgQueueRaw = stats.queueDurations.length > 0
+          ? stats.queueDurations.reduce((a, b) => a + b, 0) / stats.queueDurations.length
+          : 0;
+
         return {
           name,
           avgDuration: avgDurationRaw / maxAvg,
           avgDurationRaw,
+          avgQueueRaw,
           p50Duration: percentile(stats.durations, 50),
           p90Duration: percentile(stats.durations, 90),
           runs: total,
@@ -79,15 +100,13 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
           durations: sparkData,
         };
       })
-      .sort((a, b) => {
+      .sort((a: CheckStat, b: CheckStat) => {
         const mul = sortDir === "desc" ? -1 : 1;
-        switch (sortField) {
-          case "avgDuration": return mul * (a.avgDurationRaw - b.avgDurationRaw);
-          case "passRate": return mul * (a.passRate - b.passRate);
-          case "runs": return mul * (a.runs - b.runs);
-          case "flaky": return mul * ((a.isFlaky ? 0 : 1) - (b.isFlaky ? 0 : 1));
-          default: return 0;
-        }
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+        if (typeof aVal === "number" && typeof bVal === "number") return mul * (aVal - bVal);
+        if (typeof aVal === "boolean" && typeof bVal === "boolean") return mul * ((aVal ? 0 : 1) - (bVal ? 0 : 1));
+        return mul * String(aVal).localeCompare(String(bVal));
       });
   }, [prs, sortField, sortDir]);
 
@@ -140,13 +159,14 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
               <th className="px-3 py-2.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                 任务名称
               </th>
-              <SortHead field="avgDuration" label="平均耗时" />
+              <SortHead field="avgDurationRaw" label="平均耗时" />
+              <SortHead field="avgQueueRaw" label="平均排队" />
               <th className="px-3 py-2.5 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
                 耗时分布
               </th>
               <SortHead field="runs" label="运行次数" />
               <SortHead field="passRate" label="通过率" />
-              <SortHead field="flaky" label="状态" />
+              <SortHead field="isFlaky" label="状态" />
               <th className="px-3 py-2.5 w-8" />
             </tr>
           </thead>
@@ -171,6 +191,14 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
                     <td className="px-3 py-2.5">
                       <span className="text-xs font-mono text-slate-300">
                         {formatDurationShort(row.avgDurationRaw)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={cn(
+                        "text-xs font-mono",
+                        row.avgQueueRaw > 5 * 60 * 1000 ? "text-amber-400" : "text-slate-400"
+                      )}>
+                        {formatDurationShort(row.avgQueueRaw)}
                       </span>
                     </td>
                     <td className="px-3 py-2.5 w-40">
@@ -227,6 +255,7 @@ export default function ChecksOverview({ prs }: ChecksOverviewProps) {
                             <div className="flex items-center gap-4 mb-2 text-[10px] text-slate-500">
                               <span>P50: <span className="text-slate-300 font-mono">{formatDuration(row.p50Duration)}</span></span>
                               <span>P90: <span className="text-slate-300 font-mono">{formatDuration(row.p90Duration)}</span></span>
+                              <span>平均排队: <span className={cn("font-mono", row.avgQueueRaw > 5 * 60 * 1000 ? "text-amber-400" : "text-slate-300")}>{formatDurationShort(row.avgQueueRaw)}</span></span>
                               <span>失败: <span className="text-rose-400 font-mono">{row.failCount}</span></span>
                               <span>超时: <span className="text-amber-400 font-mono">{row.timeoutCount}</span></span>
                             </div>

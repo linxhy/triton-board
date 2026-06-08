@@ -124,7 +124,7 @@ export default function Dashboard() {
         <KPICard
           title="排队时长"
           value={formatDuration(kpis.avgQueue)}
-          subtitle={`P50: ${formatDuration(kpis.p50Queue)} · P90: ${formatDuration(kpis.p90Queue)}`}
+          subtitle={`P50: ${formatDuration(kpis.p50Queue)} · P90: ${formatDuration(kpis.p90Queue)}（环境排队）`}
           icon={<Timer className="w-4 h-4" />}
           accentColor="#f59e0b"
           trend={invertTrend(kpis.queueChange.trend)}

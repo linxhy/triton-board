@@ -1,4 +1,4 @@
-import type { GitHubPR, GitHubCheckRun, PRMetrics, CheckMetrics } from "@/types";
+import type { GitHubPR, GitHubCheckRun, GitHubWorkflowRun, PRMetrics, CheckMetrics } from "@/types";
 
 const REPO_OWNER = "triton-lang";
 const REPO_NAME = "triton-ascend";
@@ -44,6 +44,15 @@ export async function fetchCheckRuns(
   return data.check_runs;
 }
 
+export async function fetchWorkflowRuns(
+  sha: string,
+  token?: string
+): Promise<GitHubWorkflowRun[]> {
+  const url = `${BASE_URL}/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?head_sha=${sha}&per_page=100`;
+  const data = await fetchJSON<{ workflow_runs: GitHubWorkflowRun[] }>(url, token);
+  return data.workflow_runs;
+}
+
 function parseDuration(start: string | null, end: string | null): number | null {
   if (!start || !end) return null;
   const duration = new Date(end).getTime() - new Date(start).getTime();
@@ -52,7 +61,8 @@ function parseDuration(start: string | null, end: string | null): number | null 
 
 export function computePRMetrics(
   pr: GitHubPR,
-  checkRuns: GitHubCheckRun[]
+  checkRuns: GitHubCheckRun[],
+  workflowRuns: GitHubWorkflowRun[]
 ): PRMetrics {
   const createdAt = new Date(pr.created_at);
   const mergedAt = pr.merged_at ? new Date(pr.merged_at) : null;
@@ -64,26 +74,33 @@ export function computePRMetrics(
     ? closedAt.getTime() - createdAt.getTime()
     : null;
 
-  const completedChecks = checkRuns.filter(
-    (cr) => cr.status === "completed" && cr.started_at
-  );
+  const workflowQueueMap = new Map<string, number>();
+  workflowRuns.forEach((wr) => {
+    if (wr.run_started_at && wr.created_at) {
+      const queueTime = new Date(wr.run_started_at).getTime() - new Date(wr.created_at).getTime();
+      if (queueTime > 0) {
+        workflowQueueMap.set(wr.name, queueTime);
+      }
+    }
+  });
 
-  const earliestStart = completedChecks.length > 0
-    ? new Date(Math.min(...completedChecks.map((cr) => new Date(cr.started_at!).getTime())))
+  const checks: CheckMetrics[] = checkRuns.map((cr) => {
+    const checkQueueDuration = workflowQueueMap.get(cr.name) || null;
+    return {
+      name: cr.name,
+      status: cr.status,
+      conclusion: cr.conclusion,
+      duration: parseDuration(cr.started_at, cr.completed_at),
+      queueDuration: checkQueueDuration,
+      startedAt: cr.started_at ? new Date(cr.started_at) : null,
+      completedAt: cr.completed_at ? new Date(cr.completed_at) : null,
+    };
+  });
+
+  const checksWithQueue = checks.filter((c) => c.queueDuration !== null);
+  const queueDuration = checksWithQueue.length > 0
+    ? checksWithQueue.reduce((sum, c) => sum + (c.queueDuration || 0), 0) / checksWithQueue.length
     : null;
-
-  const queueDuration = earliestStart
-    ? earliestStart.getTime() - createdAt.getTime()
-    : null;
-
-  const checks: CheckMetrics[] = checkRuns.map((cr) => ({
-    name: cr.name,
-    status: cr.status,
-    conclusion: cr.conclusion,
-    duration: parseDuration(cr.started_at, cr.completed_at),
-    startedAt: cr.started_at ? new Date(cr.started_at) : null,
-    completedAt: cr.completed_at ? new Date(cr.completed_at) : null,
-  }));
 
   const totalChecks = checkRuns.length;
   const successChecks = checkRuns.filter(
@@ -118,11 +135,14 @@ export async function fetchAllPRMetrics(
 
   for (const pr of prs) {
     try {
-      const checkRuns = await fetchCheckRuns(pr.head.sha, token);
-      const prMetrics = computePRMetrics(pr, checkRuns);
+      const [checkRuns, workflowRuns] = await Promise.all([
+        fetchCheckRuns(pr.head.sha, token),
+        fetchWorkflowRuns(pr.head.sha, token),
+      ]);
+      const prMetrics = computePRMetrics(pr, checkRuns, workflowRuns);
       metrics.push(prMetrics);
     } catch {
-      const prMetrics = computePRMetrics(pr, []);
+      const prMetrics = computePRMetrics(pr, [], []);
       metrics.push(prMetrics);
     }
   }

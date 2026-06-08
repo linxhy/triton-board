@@ -20,6 +20,18 @@ export interface GitHubCheckRun {
   head_sha: string;
 }
 
+export interface GitHubWorkflowRun {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  created_at: string;
+  run_started_at: string | null;
+  updated_at: string;
+  head_sha: string;
+  event: string;
+}
+
 export interface PRMetrics {
   prNumber: number;
   title: string;
@@ -42,6 +54,7 @@ export interface CheckMetrics {
   status: "queued" | "in_progress" | "completed";
   conclusion: string | null;
   duration: number | null;
+  queueDuration: number | null;
   startedAt: Date | null;
   completedAt: Date | null;
 }
