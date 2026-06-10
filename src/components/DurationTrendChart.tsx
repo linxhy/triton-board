@@ -15,12 +15,14 @@ import { formatDuration, percentile } from "@/utils/format";
 import { cn } from "@/lib/utils";
 
 const METRIC_CONFIG = {
-  e2e: { label: "E2E 时长", color: "#38bdf8", unit: "h", divisor: 3600000 },
-  queue: { label: "排队时长", color: "#f59e0b", unit: "m", divisor: 60000 },
-  wfTotal: { label: "Workflow 总时长", color: "#10b981", unit: "m", divisor: 60000 },
+  e2e: { label: "E2E 时长", color: "#38bdf8" },
+  queue: { label: "排队时长", color: "#f59e0b" },
+  wfTotal: { label: "Workflow 总时长", color: "#10b981" },
 } as const;
 
 type MetricKey = keyof typeof METRIC_CONFIG;
+
+const MS_PER_MINUTE = 60000;
 
 interface DurationTrendChartProps {
   prs: PRMetrics[];
@@ -55,11 +57,11 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
         );
         return {
           name: `#${pr.prNumber}`,
-          e2e: pr.e2eDuration! / METRIC_CONFIG.e2e.divisor,
+          e2e: pr.e2eDuration! / MS_PER_MINUTE,
           e2eRaw: pr.e2eDuration,
-          queue: pr.queueDuration ? pr.queueDuration / METRIC_CONFIG.queue.divisor : 0,
+          queue: pr.queueDuration ? pr.queueDuration / MS_PER_MINUTE : 0,
           queueRaw: pr.queueDuration,
-          wfTotal: wfTotal / METRIC_CONFIG.wfTotal.divisor,
+          wfTotal: wfTotal / MS_PER_MINUTE,
           wfTotalRaw: wfTotal,
           author: pr.author,
         };
@@ -70,30 +72,22 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
     if (!showPercentiles) return {};
     const lines: Record<MetricKey, { p50: number; p90: number }> = {} as never;
     for (const key of activeMetrics) {
-      const cfg = METRIC_CONFIG[key];
       const rawKey = `${key}Raw` as "e2eRaw" | "queueRaw" | "wfTotalRaw";
       const values = data.map((d) => d[rawKey]).filter((v): v is number => v != null && v > 0);
       if (values.length > 0) {
         lines[key] = {
-          p50: percentile(values, 50) / cfg.divisor,
-          p90: percentile(values, 90) / cfg.divisor,
+          p50: percentile(values, 50) / MS_PER_MINUTE,
+          p90: percentile(values, 90) / MS_PER_MINUTE,
         };
       }
     }
     return lines;
   }, [data, activeMetrics, showPercentiles]);
 
-  const maxDivisor = useMemo(() => {
-    let max: number = METRIC_CONFIG.e2e.divisor;
-    for (const key of activeMetrics) {
-      if (METRIC_CONFIG[key].divisor < max) {
-        max = METRIC_CONFIG[key].divisor;
-      }
-    }
-    return max;
-  }, [activeMetrics]);
-
-  const unitLabel = maxDivisor >= 3600000 ? "h" : "m";
+  const yTickFormatter = (v: number) => {
+    if (v >= 60) return `${(v / 60).toFixed(0)}h`;
+    return `${v.toFixed(0)}m`;
+  };
 
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-xl">
@@ -158,7 +152,7 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
               tick={{ fill: "#64748b", fontSize: 11 }}
               axisLine={{ stroke: "rgba(255,255,255,0.06)" }}
               tickLine={false}
-              tickFormatter={(v: number) => `${v}${unitLabel}`}
+              tickFormatter={yTickFormatter}
             />
             <Tooltip
               contentStyle={{
@@ -172,7 +166,7 @@ export default function DurationTrendChart({ prs }: DurationTrendChartProps) {
                 const rawKey = `${name}Raw` as "e2eRaw" | "queueRaw" | "wfTotalRaw";
                 const item = data.find((d) => d[name as keyof typeof d] === value);
                 const rawVal = item?.[rawKey];
-                return [rawVal ? formatDuration(rawVal) : `${value.toFixed(1)}${unitLabel}`, METRIC_CONFIG[name as MetricKey]?.label || name];
+                return [rawVal ? formatDuration(rawVal) : `${value.toFixed(1)}m`, METRIC_CONFIG[name as MetricKey]?.label || name];
               }}
               labelFormatter={(label: string) => {
                 const item = data.find((d) => d.name === label);
